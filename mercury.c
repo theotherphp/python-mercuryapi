@@ -476,6 +476,45 @@ Reader_get_model(Reader* self)
     return PyUnicode_FromString(model.value);
 }
 
+static PyObject *
+Reader_write(Reader *self, PyObject *args)
+{
+    char *epcData;
+    int epcLen;
+    TMR_TagData epc;
+    TMR_TagOp tagop;
+    TMR_Status ret;
+
+    if (!PyArg_ParseTuple(args, "s", &epcData))
+    {
+        PyErr_SetString(PyExc_TypeError, "Bad EPC parameter");
+        return NULL;
+    }
+
+    epcLen = strlen(epcData);
+    if (epcLen > TMR_MAX_EPC_BYTE_COUNT)
+    {
+        PyErr_SetString(PyExc_TypeError, "EPC too long");
+        return NULL;        
+    }
+
+    epc.epcByteCount = epcLen;
+    memcpy(epc.epc, epcData, epc.epcByteCount * sizeof(char));
+    if ((ret = TMR_TagOp_init_GEN2_WriteTag(&tagop, &epc)) != TMR_SUCCESS)
+    {
+        PyErr_SetString(PyExc_RuntimeError, TMR_strerr(&self->reader, ret));
+        return NULL;
+    }
+
+    if ((ret = TMR_executeTagOp(&self->reader, &tagop, NULL, NULL)) != TMR_SUCCESS)
+    {
+        PyErr_SetString(PyExc_RuntimeError, TMR_strerr(&self->reader, ret));
+        return NULL;        
+    }
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef Reader_methods[] = {
     {"get_supported_regions", (PyCFunction)Reader_get_supported_regions, METH_NOARGS,
      "Returns a list of regions supported by the reader"
@@ -497,6 +536,9 @@ static PyMethodDef Reader_methods[] = {
     },
     {"get_model", (PyCFunction)Reader_get_model, METH_NOARGS,
      "Returns the model name"
+    },
+    {"write", (PyCFunction)Reader_write, METH_VARARGS,
+     "Write the EPC to the tag"
     },
     {NULL}  /* Sentinel */
 };
